@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import inspect
 import io
 import json
 import os
@@ -24,12 +25,21 @@ def coins_from_copper(copper: int):
     return {"pp": pp, "gp": gp, "sp": sp, "cp": cp}
 
 
-def derived_treasure_table(profile: str):
+def derived_treasure_table(profile: str, generosity_multiplier: float = 1.0):
     factor = PROFILE_FACTOR[profile]
     return {
-        level: {difficulty: round(total * xp / 1000.0 * factor, 2) for difficulty, xp in THREAT_XP.items()}
+        level: {
+            difficulty: round(total * xp / 1000.0 * factor / generosity_multiplier, 2)
+            for difficulty, xp in THREAT_XP.items()
+        }
         for level, total in TOTAL_VALUE_BY_LEVEL.items()
     }
+
+
+def target_budget_gp(request: dict) -> float:
+    level = int(request["party_level"])
+    base = derived_treasure_table(request["profile"])[level][request["difficulty"]]
+    return round(base * int(request["party_size"]) / 4, 2)
 
 
 def main():
@@ -41,19 +51,30 @@ def main():
 
     noise = io.StringIO()
     with contextlib.redirect_stdout(noise), contextlib.redirect_stderr(noise):
-        from services.db import connect_from_csv_or_db
+        try:
+            from services.db import connect_to_database as connect_to_loot_database
+        except ImportError:
+            from services.db import connect_from_csv_or_db as connect_to_loot_database
         from services.loot_logic import GeneratorConfig, generate_loot
+        try:
+            from services.settings import DROP_GUIDANCE
+            generosity_multiplier = float(DROP_GUIDANCE.get("generosity_multiplier", 1.0))
+        except (ImportError, AttributeError, TypeError, ValueError):
+            generosity_multiplier = 1.0
 
-        cfg = GeneratorConfig(
+        config_values = dict(
             pool_size="Medium",
             difficulty=request["difficulty"],
             party_size=int(request["party_size"]),
             encounter_level=int(request["party_level"]),
             coin_pct=40,
             seed=request.get("seed"),
-            treasure_value_table=derived_treasure_table(request["profile"]),
+            treasure_value_table=derived_treasure_table(request["profile"], generosity_multiplier),
         )
-        connection = connect_from_csv_or_db()
+        if "currency_mode" in inspect.signature(GeneratorConfig).parameters:
+            config_values["currency_mode"] = "custom"
+        cfg = GeneratorConfig(**config_values)
+        connection = connect_to_loot_database()
         try:
             result = generate_loot(connection, cfg)
         finally:
@@ -67,13 +88,15 @@ def main():
             if not name:
                 continue
             target = str(item.get("name_base") or item.get("aon_target") or name).strip()
+            quantity = max(1, int(item.get("qty") or 1))
+            line_price_gp = round(float(item.get("price_est_gp") or 0), 2)
             items.append({
                 "name": name,
                 "link_target": target,
                 "level": int(item.get("level") or 0),
                 "rarity": str(item.get("rarity") or "Common").title(),
-                "quantity": int(item.get("qty") or 1),
-                "price_gp": round(float(item.get("price_est_gp") or 0), 2),
+                "quantity": quantity,
+                "price_gp": round(line_price_gp / quantity, 2),
                 "kind": "consumable" if bucket in consumable_buckets else "permanent",
                 "category": bucket,
                 "flavor": str(item.get("flavor") or ""),
@@ -83,7 +106,8 @@ def main():
     # (for example by adding a rune), making its displayed price exceed the budget.
     # Reconcile against displayed prices so the final parcel always honors the value
     # selected by this encounter generator.
-    budget_gp = float(result.get("total_value_gp") or 0)
+    source_budget_gp = float(result.get("total_value_gp") or 0)
+    budget_gp = target_budget_gp(request)
     remaining_cp = round(budget_gp * 100)
     reconciled = []
     for item in items:
@@ -102,7 +126,11 @@ def main():
         "coins": coins_from_copper(remaining_cp),
         "items": reconciled,
         "summary": f"{len(reconciled)} item selection(s) plus the remaining value in coins.",
-        "budget_details": result.get("config_used", {}),
+        "budget_details": {
+            **result.get("config_used", {}),
+            "source_budget_gp": source_budget_gp,
+            "reconciled_budget_gp": budget_gp,
+        },
     }
     print(json.dumps(response, ensure_ascii=False))
 

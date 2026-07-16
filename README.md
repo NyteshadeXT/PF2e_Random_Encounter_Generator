@@ -10,13 +10,13 @@ The generator needs Python 3 but no third-party packages.
 
 ## Optional encounter treasure
 
-The **Treasure** selector offers None (the default), Minor, Standard, and Major parcels. Item selection is delegated to the separate **Encounter Loot Generator** in the sibling `PF2e_Encounter_Generator` folder when present, with `F:\Obsidian\PF2e_Encounter_Generator` retained as a fallback. That helper supplies its item database, runes, consumables, spells, rarity handling, and installed Python environment. This random encounter generator does not modify the loot-generator project.
+The **Treasure** selector offers None (the default), Minor, Standard, and Major parcels. Item selection is delegated first to the live **Encounter Loot Generator** at `F:\Obsidian\PF2e_Encounter_Generator`, with the sibling `PF2e_Encounter_Generator` folder retained as a fallback. That helper supplies its item database, runes, consumables, spells, rarity handling, and installed Python environment. This random encounter generator does not modify the loot-generator project.
 
 Treasure value uses the supplied Pathfinder 2e Remaster Total Treasure Value by Level table. A Standard parcel is:
 
 `level total value × encounter threat XP ÷ 1,000 × party size ÷ 4`
 
-This maps Trivial, Low, Moderate, Severe, and Extreme to 4%, 6%, 8%, 12%, and 16% of the level's total value. Minor applies 0.5× and Major applies 1.5×. The loot generator initially aims for 40% coins, and any unspent value is returned as coins. The integration reconciles the final displayed item prices so items plus coins never exceed the calculated parcel value.
+This maps Trivial, Low, Moderate, Severe, and Extreme to 4%, 6%, 8%, 12%, and 16% of the level's total value. Minor applies 0.5× and Major applies 1.5×. The loot generator is explicitly placed in custom-currency mode with a 40% coin target, and any unspent value is returned as coins. Its item selection may use its own generosity and variation rules internally, but the integration reconciles stacked-item prices and the final parcel so displayed items plus coins exactly equal this generator's calculated encounter value.
 
 To use a copy of the loot generator in another location, set its path before starting:
 

@@ -25,9 +25,9 @@ DB_PATH = Path(os.getenv("PF2E_DB_PATH", ROOT / "creature_db.db"))
 PORT = int(os.getenv("PF2E_PORT", "8765"))
 UNDETERMINED_REGION = "__undetermined__"
 SETTINGS_PATH = Path(os.getenv("PF2E_SETTINGS_PATH", Path(os.getenv("LOCALAPPDATA", ROOT)) / "PF2e Encounter Generator" / "settings.json"))
-DEFAULT_LOOT_GENERATOR_PATH = ROOT.parent / "PF2e_Encounter_Generator"
+DEFAULT_LOOT_GENERATOR_PATH = Path(r"F:\Obsidian\PF2e_Encounter_Generator")
 if not DEFAULT_LOOT_GENERATOR_PATH.exists():
-    DEFAULT_LOOT_GENERATOR_PATH = Path(r"F:\Obsidian\PF2e_Encounter_Generator")
+    DEFAULT_LOOT_GENERATOR_PATH = ROOT.parent / "PF2e_Encounter_Generator"
 LOOT_GENERATOR_PATH = Path(os.getenv("PF2E_LOOT_GENERATOR_PATH", DEFAULT_LOOT_GENERATOR_PATH))
 
 BUDGETS = {
